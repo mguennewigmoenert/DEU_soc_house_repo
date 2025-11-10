@@ -1,0 +1,374 @@
+#****************************************#
+#************ LOR correction ************#
+#******** crosswalk and weights *********#
+#****************************************#
+
+# libraries
+library(sf)
+library(tidyverse)
+library(ggplot2)
+library(stringr)
+library(data.table)
+library(readxl)
+library(dplyr)
+library(purrr)
+library(tmap)
+library(haven)
+
+# empty old environment
+rm(list = ls())
+
+# define paths
+path = "/Users/maxmonert/Library/CloudStorage/Dropbox/Projects/DEU Housing Project/"
+data = str_c(path, "data/")
+
+# ---- Upload dta frame ---------------------------------------------------
+panelSUF <- data.frame(read_dta(str_c(data, 'raw/Socioeconomic Data/microm_panelSUF_05-21.dta')))
+
+# ---- Set all -1 values to NA --------------------------------------------
+panelSUF[panelSUF == -1] <- NA
+
+# variable names
+names(panelSUF)
+
+# check variable label 
+sapply(panelSUF, function(x) attr(x, "label"))
+
+# ---- Upload crosswalk ---------------------------------------------------
+int_w_lor_2021_rect_1km <- data.frame(fread(str_c(data, "raw/crosswalk/int_w_lor_2021_rect_1km.csv")))
+int_tdw_lor_2021_rect_1km <- data.frame(fread(str_c(data, "raw/crosswalk/int_tdw_lor_2021_rect_1km.csv")))
+
+# set target ID
+int_tdw_lor_2021_rect_1km = 
+int_tdw_lor_2021_rect_1km |>
+  rename(target_id = PLR_ID)
+
+names(panelSUF)
+
+# ---- Join relevant variables --------------------------------------------
+vars <- panelSUF |> dplyr::select(r1_id, year,
+                                  r1_ewa_a_gesamt, # Einwohner
+                                  r1_mba_a_gewerbe, # Number of commercial enterprises
+                                  r1_mba_a_haushalt, # Number of households
+                                  r1_kkr_w_summe,
+                                  r1_alq_p_quote, 
+                                  r1_mso_p_ausland, 
+                                  r1_mso_p_singles, 
+                                  r1_mso_p_paare,
+                                  r1_mso_p_familien, 
+                                  r1_mso_w_kinder,
+                                  r1_mpi_w_dichte,
+                                  r1_mps_p_cabrio, 
+                                  r1_mps_p_gelaende, 
+                                  r1_mps_p_kleinwag, 
+                                  r1_mps_p_kombi, 
+                                  r1_mps_p_miniwag,
+                                  r1_mps_p_mittel,
+                                  r1_mps_p_obmittel,
+                                  r1_mps_p_ober,
+                                  r1_mps_p_unmittel,
+                                  r1_mpa_p_elektro,
+                                  r1_eag_p_m00bis03,
+                                  r1_eag_p_m03bis06, 
+                                  r1_eag_p_m06bis10,
+                                  r1_eag_p_m10bis15,
+                                  r1_eag_p_m15bis18,
+                                  r1_eag_p_m18bis20,
+                                  r1_eag_p_m20bis25,
+                                  r1_eag_p_m25bis30,
+                                  r1_eag_p_m30bis35,
+                                  r1_eag_p_m35bis40,
+                                  r1_eag_p_m40bis45,
+                                  r1_eag_p_m45bis50,
+                                  r1_eag_p_m50bis55,
+                                  r1_eag_p_m55bis60,
+                                  r1_eag_p_m60bis65,
+                                  r1_eag_p_m65bis75,
+                                  r1_eag_p_m75undgr,
+                                  r1_eag_p_w00bis03,
+                                  r1_eag_p_w03bis06,
+                                  r1_eag_p_w06bis10,
+                                  r1_eag_p_w10bis15,
+                                  r1_eag_p_w15bis18,
+                                  r1_eag_p_w18bis20,
+                                  r1_eag_p_w20bis25,
+                                  r1_eag_p_w25bis30,
+                                  r1_eag_p_w30bis35,
+                                  r1_eag_p_w35bis40,
+                                  r1_eag_p_w40bis45,
+                                  r1_eag_p_w45bis50,
+                                  r1_eag_p_w50bis55,
+                                  r1_eag_p_w55bis60,
+                                  r1_eag_p_w60bis65,
+                                  r1_eag_p_w65bis75,
+                                  r1_eag_p_w75undgr,
+                                  r1_mri_p_risiko_1,
+                                  r1_mri_p_risiko_2,
+                                  r1_mri_p_risiko_3,
+                                  r1_mri_p_risiko_4,
+                                  r1_mri_p_risiko_5,
+                                  r1_mri_p_risiko_6,
+                                  r1_mri_p_risiko_7,
+                                  r1_mri_p_risiko_8,
+                                  r1_mri_p_risiko_9,
+                                  r1_met_p_deutschl,
+                                  r1_met_p_italien,
+                                  r1_met_p_tuerkei,
+                                  r1_met_p_griechen,
+                                  r1_met_p_spanport,
+                                  r1_met_p_balkan,
+                                  r1_met_p_osteurop,
+                                  r1_met_p_afrika,
+                                  r1_met_p_islam,
+                                  r1_met_p_asien,
+                                  r1_met_p_uebrige,
+                                  r1_mmo_p_fluktu_1,
+                                  r1_mmo_p_fluktu_2,
+                                  r1_mmo_p_fluktu_3,
+                                  r1_mmo_p_fluktu_4,
+                                  r1_mmo_p_fluktu_5,
+                                  r1_mmo_p_fluktu_6,
+                                  r1_mmo_p_fluktu_7
+                )
+
+crosswalk <- int_w_lor_2021_rect_1km |> 
+  left_join(vars, by = c("source_id" = "r1_id"))
+
+crosswalk <- int_tdw_lor_2021_rect_1km |>
+  left_join(vars, by = c("idm" = "r1_id", "year" = "year"))
+
+# household related variables
+hh_vars <- c("r1_mso_p_singles", 
+              "r1_mso_p_paare", 
+              "r1_mso_p_familien", 
+              "r1_mso_p_ausland",
+              "r1_mri_p_risiko_1",
+              "r1_mri_p_risiko_2",
+              "r1_mri_p_risiko_3",
+              "r1_mri_p_risiko_4",
+              "r1_mri_p_risiko_5",
+              "r1_mri_p_risiko_6",
+              "r1_mri_p_risiko_7",
+              "r1_mri_p_risiko_8",
+              "r1_mri_p_risiko_9",
+              "r1_met_p_deutschl",
+              "r1_met_p_italien",
+              "r1_met_p_tuerkei",
+              "r1_met_p_griechen",
+              "r1_met_p_spanport",
+              "r1_met_p_balkan",
+              "r1_met_p_osteurop",
+              "r1_met_p_afrika",
+              "r1_met_p_islam",
+              "r1_met_p_asien",
+              "r1_met_p_uebrige",
+              "r1_mmo_p_fluktu_1",
+              "r1_mmo_p_fluktu_2",
+              "r1_mmo_p_fluktu_3",
+              "r1_mmo_p_fluktu_4",
+              "r1_mmo_p_fluktu_5",
+              "r1_mmo_p_fluktu_6",
+              "r1_mmo_p_fluktu_7"
+            )
+
+# Create new variable names
+hh_vars_clean <- gsub("_p_", "_", hh_vars) 
+
+# compute household counts
+crosswalk <- crosswalk %>%
+  mutate(across(all_of(hh_vars), 
+                ~ (.x / 100) * r1_mba_a_haushalt, 
+                .names = "{gsub('_p_', '_', .col)}"))
+
+
+# population related variables
+pop_vars <- c(
+             "r1_eag_p_m00bis03", 
+             "r1_eag_p_m03bis06", 
+             "r1_eag_p_m06bis10",
+             "r1_eag_p_m10bis15",
+             "r1_eag_p_m15bis18",
+             "r1_eag_p_m18bis20",
+             "r1_eag_p_m20bis25",
+             "r1_eag_p_m25bis30",
+             "r1_eag_p_m30bis35",
+             "r1_eag_p_m35bis40",
+             "r1_eag_p_m40bis45",
+             "r1_eag_p_m45bis50",
+             "r1_eag_p_m50bis55",
+             "r1_eag_p_m55bis60",
+             "r1_eag_p_m60bis65",
+             "r1_eag_p_m65bis75",
+             "r1_eag_p_m75undgr",
+             "r1_eag_p_w00bis03",
+             "r1_eag_p_w03bis06",
+             "r1_eag_p_w06bis10",
+             "r1_eag_p_w10bis15",
+             "r1_eag_p_w15bis18",
+             "r1_eag_p_w18bis20",
+             "r1_eag_p_w20bis25",
+             "r1_eag_p_w25bis30",
+             "r1_eag_p_w30bis35",
+             "r1_eag_p_w35bis40",
+             "r1_eag_p_w40bis45",
+             "r1_eag_p_w45bis50",
+             "r1_eag_p_w50bis55",
+             "r1_eag_p_w55bis60",
+             "r1_eag_p_w60bis65",
+             "r1_eag_p_w65bis75",
+             "r1_eag_p_w75undgr"
+)
+
+# Create new variable names
+pop_vars_clean <- gsub("_p_", "_", pop_vars) 
+
+# Compute population counts and store as new variables
+crosswalk <- crosswalk %>%
+  mutate(across(all_of(pop_vars), 
+                ~ (.x / 100) * r1_ewa_a_gesamt, 
+                .names = "{gsub('_p_', '_', .col)}"))
+
+# Compute working-age population (15–65)
+crosswalk = crosswalk %>%
+  mutate(
+    working_age_pop = r1_eag_m15bis18 + r1_eag_m18bis20 + r1_eag_m20bis25 + r1_eag_m25bis30 +
+      r1_eag_m30bis35 + r1_eag_m35bis40 + r1_eag_m40bis45 + r1_eag_m45bis50 +
+      r1_eag_m50bis55 + r1_eag_m55bis60 + r1_eag_m60bis65 +
+      r1_eag_w15bis18 + r1_eag_w18bis20 + r1_eag_w20bis25 + r1_eag_w25bis30 +
+      r1_eag_w30bis35 + r1_eag_w35bis40 + r1_eag_w40bis45 + r1_eag_w45bis50 +
+      r1_eag_w50bis55 + r1_eag_w55bis60 + r1_eag_w60bis65,
+    
+    total_unemployed = r1_alq_p_quote / 100 * working_age_pop
+  )
+
+# total cars
+crosswalk$r1_mpi_w_dichte_hh = crosswalk$r1_mpi_w_dichte * crosswalk$r1_mba_a_haushalt
+
+# car related variables
+car_vars <- c("r1_mps_p_cabrio", 
+              "r1_mps_p_gelaende", 
+              "r1_mps_p_kleinwag", 
+              "r1_mps_p_kombi", 
+              "r1_mps_p_miniwag",
+              "r1_mps_p_mittel",
+              "r1_mps_p_obmittel",
+              "r1_mps_p_ober",
+              "r1_mps_p_unmittel",
+              "r1_mpa_p_elektro")
+
+# Create new variable names
+car_vars_clean <- gsub("_p_", "_", car_vars)
+
+# compute car counts
+crosswalk <- crosswalk %>%
+  mutate(across(all_of(car_vars), 
+                ~ (.x / 100) * r1_mpi_w_dichte_hh)) %>%
+  rename_with(.fn = ~ car_vars_clean, .cols = all_of(car_vars))
+#
+# ---- Aggregate absolute totals using area weights ------------------------
+# First: weighted sum for absolute counts
+absolute_totals <- crosswalk |>
+  group_by(year, target_id) |>
+  summarise(
+    working_age_pop    = sum(working_age_pop    * weight_tdw, na.rm = TRUE),
+    total_unemployed   = sum(total_unemployed   * weight_tdw, na.rm = TRUE),
+    r1_mba_a_gewerbe   = sum(r1_mba_a_gewerbe   * weights, na.rm = TRUE),
+    r1_kkr_w_total     = sum(r1_kkr_w_summe     * weights, na.rm = TRUE),
+    r1_mba_a_haushalt  = sum(r1_mba_a_haushalt  * weight_tdw, na.rm = TRUE),
+    r1_mso_singles     = sum(r1_mso_singles     * weight_tdw, na.rm = TRUE),
+    r1_mso_paare       = sum(r1_mso_paare       * weight_tdw, na.rm = TRUE),
+    r1_mso_familien    = sum(r1_mso_familien    * weight_tdw, na.rm = TRUE),
+    r1_mso_ausland     = sum(r1_mso_ausland     * weight_tdw, na.rm = TRUE),
+    r1_mpi_w_dichte_hh = sum(r1_mpi_w_dichte_hh * weights, na.rm = TRUE),
+    r1_ewa_a_gesamt    = sum(r1_ewa_a_gesamt    * weight_tdw, na.rm = TRUE),
+    r1_mps_cabrio      = sum(r1_mps_cabrio      * weight_tdw, na.rm = TRUE),
+    r1_mps_gelaende    = sum(r1_mps_gelaende    * weight_tdw, na.rm = TRUE),
+    r1_mps_kleinwag    = sum(r1_mps_kleinwag    * weight_tdw, na.rm = TRUE),
+    r1_mps_kombi       = sum(r1_mps_kombi       * weight_tdw, na.rm = TRUE),
+    r1_mps_mittel      = sum(r1_mps_mittel      * weight_tdw, na.rm = TRUE),
+    r1_mps_obmittel    = sum(r1_mps_obmittel    * weight_tdw, na.rm = TRUE),
+    r1_mps_miniwag     = sum(r1_mps_miniwag     * weight_tdw, na.rm = TRUE),
+    r1_mps_ober        = sum(r1_mps_ober        * weight_tdw, na.rm = TRUE),
+    r1_mps_unmittel    = sum(r1_mps_unmittel    * weight_tdw, na.rm = TRUE),
+    r1_mpa_elektro     = sum(r1_mpa_elektro     * weight_tdw, na.rm = TRUE),
+    # r1_alq_quote       = sum(r1_alq_quote * weights, na.rm = TRUE),
+    r1_eag_m00bis03    = sum(r1_eag_m00bis03 * weights, na.rm = TRUE),
+    r1_eag_m03bis06    = sum(r1_eag_m03bis06 * weights, na.rm = TRUE),
+    r1_eag_m06bis10    = sum(r1_eag_m06bis10 * weights, na.rm = TRUE),
+    r1_eag_m10bis15    = sum(r1_eag_m10bis15 * weights, na.rm = TRUE),
+    r1_eag_m15bis18    = sum(r1_eag_m15bis18 * weights, na.rm = TRUE),
+    r1_eag_m18bis20    = sum(r1_eag_m18bis20 * weights, na.rm = TRUE),
+    r1_eag_m20bis25    = sum(r1_eag_m20bis25 * weights, na.rm = TRUE),
+    r1_eag_m25bis30    = sum(r1_eag_m25bis30 * weights, na.rm = TRUE),
+    r1_eag_m30bis35    = sum(r1_eag_m30bis35 * weights, na.rm = TRUE),
+    r1_eag_m35bis40    = sum(r1_eag_m35bis40 * weights, na.rm = TRUE),
+    r1_eag_m40bis45    = sum(r1_eag_m40bis45 * weights, na.rm = TRUE),
+    r1_eag_m45bis50    = sum(r1_eag_m45bis50 * weights, na.rm = TRUE),
+    r1_eag_m50bis55    = sum(r1_eag_m50bis55 * weights, na.rm = TRUE),
+    r1_eag_m55bis60    = sum(r1_eag_m55bis60 * weights, na.rm = TRUE),
+    r1_eag_m60bis65    = sum(r1_eag_m55bis60 * weights, na.rm = TRUE),
+    r1_eag_m65bis75    = sum(r1_eag_m55bis60 * weights, na.rm = TRUE),
+    r1_mri_risiko_1    = sum(r1_mri_risiko_1 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_2    = sum(r1_mri_risiko_2 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_3    = sum(r1_mri_risiko_3 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_4    = sum(r1_mri_risiko_4 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_5    = sum(r1_mri_risiko_5 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_6    = sum(r1_mri_risiko_6 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_7    = sum(r1_mri_risiko_7 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_8    = sum(r1_mri_risiko_8 * weight_tdw, na.rm = TRUE),
+    r1_mri_risiko_9    = sum(r1_mri_risiko_9 * weight_tdw, na.rm = TRUE),
+    r1_met_deutschl    = sum(r1_met_deutschl * weight_tdw, na.rm = TRUE),
+    r1_met_italien     = sum(r1_met_italien * weight_tdw, na.rm = TRUE),
+    r1_met_tuerkei     = sum(r1_met_tuerkei * weight_tdw, na.rm = TRUE),
+    r1_met_griechen    = sum(r1_met_griechen * weight_tdw, na.rm = TRUE),
+    r1_met_spanport    = sum(r1_met_spanport * weight_tdw, na.rm = TRUE),
+    r1_met_balkan      = sum(r1_met_balkan * weight_tdw, na.rm = TRUE),
+    r1_met_osteurop    = sum(r1_met_osteurop * weight_tdw, na.rm = TRUE),
+    r1_met_afrika      = sum(r1_met_afrika * weight_tdw, na.rm = TRUE),
+    r1_met_islam       = sum(r1_met_islam * weight_tdw, na.rm = TRUE),
+    r1_met_asien       = sum(r1_met_asien * weight_tdw, na.rm = TRUE),
+    r1_met_uebrige     = sum(r1_met_uebrige * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_1    = sum(r1_mmo_fluktu_1 * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_2    = sum(r1_mmo_fluktu_2 * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_3    = sum(r1_mmo_fluktu_3 * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_4    = sum(r1_mmo_fluktu_4 * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_5    = sum(r1_mmo_fluktu_5 * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_6    = sum(r1_mmo_fluktu_6 * weight_tdw, na.rm = TRUE),
+    r1_mmo_fluktu_7    = sum(r1_mmo_fluktu_7 * weight_tdw, na.rm = TRUE),
+    .groups = "drop"
+  )
+#
+# Then: weighted average for share/mean variables
+weighted_avg <- crosswalk |>
+  mutate(weight = weights * r1_mba_a_haushalt) |>  # weighting base
+  group_by(year, target_id) |>
+  summarise(
+    r1_kkr_w_summe    = weighted.mean(r1_kkr_w_summe, w = weight, na.rm = TRUE),
+    r1_alq_p_quote    = weighted.mean(r1_alq_p_quote, w = weight, na.rm = TRUE),
+    r1_mso_p_ausland  = weighted.mean(r1_mso_p_ausland, w = weight, na.rm = TRUE),
+    r1_mso_p_singles  = weighted.mean(r1_mso_p_singles, w = weight, na.rm = TRUE),
+    r1_mso_p_paare    = weighted.mean(r1_mso_p_paare, w = weight, na.rm = TRUE),
+    r1_mso_p_familien = weighted.mean(r1_mso_p_familien, w = weight, na.rm = TRUE),
+    r1_mso_w_kinder   = weighted.mean(r1_mso_w_kinder, w = weight, na.rm = TRUE),
+              .groups = "drop"
+  )
+
+# Final merge
+housing_estimates_panel <- left_join(absolute_totals, weighted_avg, by = c("year", "target_id"))
+#
+# check totals
+housing_estimates_panel |>
+  group_by(year) |>
+  summarise(mean(r1_kkr_w_summe),
+            mean(r1_mso_p_paare, na.rm = T),
+            sum(r1_ewa_a_gesamt, na.rm = T))
+#
+# check number of lors
+housing_estimates_panel |>
+  group_by(year) |>
+  summarise(num_lors = n_distinct(target_id)) |>
+  arrange(year)
+#
+# ---- Save to file --------------------------------------------------------
+fwrite(housing_estimates_panel, str_c(data, "temp/lor_microm_panelSUF_w.csv"))
+
