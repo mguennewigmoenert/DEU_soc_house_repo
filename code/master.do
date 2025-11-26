@@ -9,7 +9,7 @@
 if c(username) =="maxmonert" {
 global TEMP /Users/maxmonert/Library/CloudStorage/Dropbox/Projects/DEU Housing Project/data/temp
 global IN /Users/maxmonert/Library/CloudStorage/Dropbox/Projects/DEU Housing Project/data/raw
-global output /Users/maxmonert/Desktop/Research/Projects/SocialHousing/output
+global output /Users/maxmonert/Library/CloudStorage/Dropbox/Projects/DEU Housing Project/output
 global code /Users/maxmonert/Desktop/Research/Projects/SocialHousing/code
 }
 

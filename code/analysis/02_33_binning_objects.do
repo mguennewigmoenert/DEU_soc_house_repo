@@ -45,6 +45,9 @@ replace modern_year_1 = (letzte_modernisierung == jahr + 1)
 * scale treatment variables
 g d_socialh_scale = d_socialh *10
 g sh_d_socialh_scale = sh_d_socialh *1000
+
+bysort obid: gen d_sh = (foerderung == 1)
+
 xxx
 * ============================= *
 **# === Regression Results === *
@@ -58,7 +61,7 @@ did_multiplegt_dyn modern_year PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a1
 did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr sh_d_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) continous(1)
 
 did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh ///
-if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
+if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
 effects(5) placebo(3) controls( ln_wohnungen ) cluster(PLR_ID_num)
 
 did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh ///
@@ -66,7 +69,7 @@ if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, /
 effects(5) placebo(3) controls( ln_wohnungen ) cluster(PLR_ID_num)
 
 did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr d_socialh_scale ///
-if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
+if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
 effects(5) placebo(3) controls(ln_wohnungen) continuous(1) cluster(PLR_ID_num) ///
 ci_level(90)
 
@@ -75,6 +78,10 @@ if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, /
 effects(5) placebo(3) controls(ln_wohnungen) continuous(1) cluster(PLR_ID_num) ///
 ci_level(90)
 
+did_multiplegt_dyn modern_year PLR_ID_num jahr c_dd_socialh ///
+if a100_r == 1 & inrange(jahr, 2010, 2019) & d_sh == 1, ///
+effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num) ///
+ci_level(90)
 
 * ============================= *
 **# === Regression Results === *
@@ -90,8 +97,10 @@ did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh if d_socialh>=0
 did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung!=1, effects(5) placebo(3) cluster(PLR_ID_num)
 graph export $output/max/graphs/dsdh/dcdh_prop_ln_rent.png, as(png) replace
 
-did_multiplegt_dyn modern PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung!=1, effects(5) placebo(3) cluster(PLR_ID_num)
+did_multiplegt_dyn modern PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung!=1, effects(5) placebo(3) cluster(PLR_ID_num) same_switchers
 graph export $output/max/graphs/dsdh/dcdh_prop_modern.png, as(png) replace
+
+did_multiplegt_dyn modern_year PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num)
 
 did_multiplegt_dyn modern_year PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung!=1, effects(5) placebo(3) cluster(PLR_ID_num)
 graph export $output/max/graphs/dsdh/dcdh_prop_modern_year.png, as(png) replace

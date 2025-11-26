@@ -179,7 +179,7 @@ gen never_treat2 = treated_2==0
 g jahr_num = jahr
 recast int jahr_num, force
 
-
+/*
 reghdfe ln_qm_miete_kalt L_2-L_5 F_0-F_5 if a100_r==1 & inrange(jahr, 2013, 2019) , absorb(PLR_ID jahr) cl(PLR_ID) nocons
 coefplot, vertical
 * adjust coeffcients
@@ -198,6 +198,7 @@ coefplot, vertical
 eststo _test
 
 * coefplot _test, vertical level(95 90)
+*/
 
 * what is the sample
 tab jahr if e(sample)
@@ -257,14 +258,33 @@ g r1_kkr_pop = r1_kkr_w_total / ln_r1_ewa_a_gesamt
 g ln_r1_kkr_pop = ln(r1_kkr_pop + 1)
 
 * pool households by risk type
-g risk_low      = r1_mri_risiko_1 + r1_mri_risiko_2 + r1_mri_risiko_3 + r1_mri_risiko_4 + r1_mri_risiko_5
-g risk_high     = r1_mri_risiko_6 + r1_mri_risiko_7 + r1_mri_risiko_8 + r1_mri_risiko_9
+g risk_low      = r1_mri_risiko_1 + r1_mri_risiko_2 + r1_mri_risiko_3
+g risk_med      = r1_mri_risiko_4 + r1_mri_risiko_5 + r1_mri_risiko_6
+g risk_high     = r1_mri_risiko_7 + r1_mri_risiko_8 + r1_mri_risiko_9
 
 g risk_low_high = risk_low/risk_high
-g risk_p_high   = (risk_high / r1_mba_a_haushalt *100)
-g risk_p_low    = (risk_low / r1_mba_a_haushalt *100)
-g ln_risk_low   = ln(risk_low + 1)
-g ln_risk_high  = ln(risk_high + 1)
+g risk_p_high   = ( risk_high / r1_mba_a_haushalt * 100 )
+g risk_p_med    = ( risk_med / r1_mba_a_haushalt * 100 )
+g risk_p_low    = ( risk_low / r1_mba_a_haushalt * 100 )
+g ln_risk_low   = ln( risk_low )
+g ln_risk_high  = ln( risk_high )
+g ln_risk_med   = ln( risk_high )
+
+/*
+
+did_multiplegt_dyn p_objects_modern_year	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen ) same_switchers
+
+
+did_multiplegt_dyn risk_p_med	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen ) same_switchers
+
+did_multiplegt_dyn risk_p_med	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen ) same_switchers weight( r1_ewa_a_gesamt )
+
+did_multiplegt_dyn risk_p_high	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen ) ci_level(90) same_switchers
+
+g risk_low_med = risk_low + risk_med
+
+did_multiplegt_dyn risk_low_med	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen ) ci_level(90)
+*/
 
 * adjust race
 * pool race
@@ -331,7 +351,7 @@ gen d_socialh_per100 = d_socialh/100
 gen sh_d_socialh_10pp = 10 * sh_d_socialh
 gen sh_d_social_priv_10pp = (d_socialh / l.wohnungen)*10  // Share of social housing relative to preexisting housing stock
 
-br d_socialh socialh sh_d_socialh
+* br d_socialh socialh sh_d_socialh
 
 * 3) Realized intensity (descriptive only): max cumulative loss per unit
 * annual flow of losses (only when stock falls)
@@ -342,7 +362,7 @@ by PLR_ID_num (jahr): gen cumloss100 = sum(loss_flow)/100
 by PLR_ID_num: egen max_cumloss100_i = max(cumloss100)
 
 rename e_e pop
-br objects_modern_year PLR_ID_num jahr c_dd_socialh
+* br objects_modern_year PLR_ID_num jahr c_dd_socialh
 
 sum d_socialh if d_socialh>0 & a100_r == 1 & inrange(jahr, 2010, 2019)
 
@@ -353,11 +373,45 @@ xxx
 **# = Estimation with did_multiplegt of de Chaisemartin and D'Haultfoeuille (2020) = *
 * ================================================================================== *
 
+did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
+	if a100_r==1 & inrange(jahr, 2010, 2019), ///
+    effects(5) placebo(3) controls(ln_wohnungen) ///
+    cluster(PLR_ID_num) save_sample 
+rename _effect _effect_1
+rename _did_sample _did_sample_1
 
 did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
 	if a100_r==1 & inrange(jahr, 2010, 2019), ///
     effects(5) placebo(3) controls(ln_wohnungen) ///
-    cluster(PLR_ID_num) design(1, console)
+    cluster(PLR_ID_num) weight(objects) same_switchers save_sample
+
+did_multiplegt_dyn ln_pop PLR_ID_num jahr c_dd_socialh ///
+	if a100_r==1 & inrange(jahr, 2010, 2019), ///
+    effects(5) placebo(3) controls(ln_wohnungen) ///
+    cluster(PLR_ID_num) same_switchers trends_lin
+
+
+rename _effect _effect_2
+rename _did_sample _did_sample_2
+
+br ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh _effect_1 _effect_2 _did_sample_2
+
+
+gen used_w_sw = e(sample)
+by PLR_ID_num: egen group_used = max(used)
+
+bysort PLR_ID_num: gen first = _n==1
+count if group_used==1 & first
+
+gen used_both = used==used_w_sw
+
+keep if used == 1
+br PLR_ID jahr c_dd_socialh ln_sqm_rent_avg used_both
+
+did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
+	if a100_r==1 & inrange(jahr, 2010, 2019), ///
+    effects(5) placebo(3) controls(ln_wohnungen) ///
+    cluster(PLR_ID_num) design(1, console) weight(objects)
 
 did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr d_socialh_per100 ///
     if a100_r==1 & inrange(jahr, 2010, 2019), ///
@@ -471,7 +525,7 @@ did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr ///
         sh_d_socialh_scale           				///
         if a100_r==1 & d_socialh >=0 & inrange(jahr, 2010, 2019),   ///
         effects(5) placebo(3) 						///
-        cluster(PLR_ID_num)
+        cluster(PLR_ID_num) 
 
 * Example with did_multiplegt(_dyn)
 did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr ///
@@ -573,16 +627,17 @@ did_multiplegt_dyn r1_mpi_w_dichte_hh PLR_ID_num jahr c_dd_socialh if d_socialh>
 did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num)
 
 * cars
-did_multiplegt_dyn p_objects_modern_year PLR_ID_num jahr c_dd_socialh if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num) weight(objects)
+did_multiplegt_dyn p_objects_modern_year PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num) weight(objects) same_switchers
 
-by_path(#)
+did_multiplegt_dyn ln_r1_mps_mittel PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster( PLR_ID_num )
 
-did_multiplegt_dyn ln_r1_mps_mittel PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num)
 did_multiplegt_dyn ln_r1_mps_obmittel PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num)
+
 did_multiplegt_dyn ln_r1_mps_ober PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num)
+
 did_multiplegt_dyn ln_r1_mpa_elektro PLR_ID_num  jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen )
 
-did_multiplegt_dyn ln_r1_mba_a_gewerbe	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen) ci_level(90)
+did_multiplegt_dyn ln_r1_mba_a_gewerbe	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen) ci_level(90) 
 
 d_socialh sh_d_socialh
 
@@ -604,7 +659,7 @@ did_multiplegt_dyn ln_r1_mpa_elektro PLR_ID_num  jahr c_dd_socialh if a100_r == 
 did_multiplegt_dyn r1_mpa_elektro_p PLR_ID_num  jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen )
 
 did_multiplegt_dyn r1_kkr_w_summe PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2023), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
-did_multiplegt_dyn total_unemployed_p PLR_ID_num jahr c_dd_socialh if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2023), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+did_multiplegt_dyn total_unemployed_p PLR_ID_num jahr c_dd_socialh if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2023), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen) weight(r1_ewa_a_gesamt)
 
 did_multiplegt_dyn ln_sqm_rent_hed_med	PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2023), effects(5) placebo(3) cluster(PLR_ID_num) controls( wohnungen )
 
@@ -664,11 +719,17 @@ r1_mba_a_haushalt
 * credit risk per household
 did_multiplegt_dyn risk_low_high	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
 
-did_multiplegt_dyn risk_low	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+did_multiplegt_dyn risk_p_low	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
 
-did_multiplegt_dyn risk_high	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+g s_risk_high = risk_high /r1_ewa_a_gesamt
+g s_risk_low = risk_low /r1_ewa_a_gesamt
 
-did_multiplegt_dyn ln_risk_low	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+
+did_multiplegt_dyn s_risk_high	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+
+did_multiplegt_dyn s_risk_low	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+
+did_multiplegt_dyn s_risk_low	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
 
 did_multiplegt_dyn ln_risk_high	  PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen) 
 
@@ -679,7 +740,8 @@ did_multiplegt_dyn total_unemployed_p	PLR_ID_num jahr sh_d_socialh if a100_r == 
 
 
 did_multiplegt_dyn ln_tot_sgb12_w PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
-did_multiplegt_dyn ln_total_unemployed PLR_ID_num jahr sh_d_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
+
+did_multiplegt_dyn ln_total_unemployed PLR_ID_num jahr sh_d_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen) same_switchers
 
 did_multiplegt_dyn r1_mba_a_gewerbe PLR_ID_num jahr sh_d_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls(ln_wohnungen)
 
@@ -714,7 +776,7 @@ g pdau10 = dau10/e_e
 g sgb12_tot =(sgb12_w / 100) * e_e
 
 *========================================================*
-**# == Rent Outcomes + Robustness ==#
+**# == Section: Rent Outcomes + Robustness ==#
 *========================================================*
 
 *--------------------------------------------------------*
@@ -724,12 +786,13 @@ postutil clear
 tempname P1
 postfile `P1' str15(outcome)                            	/// which Y
               str20(treat)                             		/// which treatment
+			  double(a100)									/// A100 Dummy
               double(                                  		///
-                  d_ph_p0  d_ph_p0_se  d_ph_p1  d_ph_p1_se 	///
-                  d_ph_p2  d_ph_p2_se  d_ph_p3  d_ph_p3_se 	///
-                  d_ph_p4  d_ph_p4_se  d_ph_m1  d_ph_m1_se 	///
-                  d_ph_m2  d_ph_m2_se  d_ph_m3  d_ph_m3_se 	///
-                  d_ph_m4  d_ph_m4_se)                 		///
+                  d_ph_p0  d_ph_p0_se d_avg_p0 d_ph_p1  d_ph_p1_se d_avg_p1 ///
+                  d_ph_p2  d_ph_p2_se d_avg_p2 d_ph_p3  d_ph_p3_se d_avg_p3 ///
+                  d_ph_p4  d_ph_p4_se d_avg_p4 d_ph_m1  d_ph_m1_se d_avg_m1 ///
+                  d_ph_m2  d_ph_m2_se d_avg_m2 d_ph_m3  d_ph_m3_se d_avg_m3 ///
+                  d_ph_m4  d_ph_m4_se d_avg_m4 ) ///
     using "${output}/postfiles/dcdh_rent.dta", replace
 
 
@@ -741,76 +804,202 @@ foreach ooi in ln_sqm_rent_avg ln_sqm_rent_med 		///
 
     *— estimation —--------------------------------------------------*
     did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh 	///
-        if a100_r==1 & inrange(jahr,2010,2019), 			///
+        if a100_r == 1 & inrange(jahr, 2010, 2019), 			///
         effects(5) placebo(3) controls(ln_wohnungen) 		///
         trends_nonparam(jahr) cluster(PLR_ID_num) graph_off
 
     *— build list of coeff & se to post —----------------------------*
-    post `P1' ("`ooi'") ("base")						///
-        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) 	///
-        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) 	///
-        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) 	///
-        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) 	///
-        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) 	///
-        (0) (0)                                       	///
-        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) 	///
-        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) 	///
-        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+    post `P1' ("`ooi'") ("base") (1)					///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0)	///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0)	///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0)	///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
 
 	*— estimation —--------------------------------------------------*
     did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
-        if a100_r==1 & inrange(jahr,2010,2019),           ///
+        if a100_r == 1 & inrange(jahr, 2010, 2019),           ///
         effects(5) placebo(3) controls(ln_wohnungen)      ///
         same_switchers cluster(PLR_ID_num) graph_off
 
     *— build list of coeff & se to post —----------------------------*
-    post `P1' ("`ooi'") ("same_switchers") 			  ///
-        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
-        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
-        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
-        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
-        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
-        (0) (0)                                       ///
-        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
-        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
-        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+    post `P1' ("`ooi'") ("same_switchers") 	(1)		  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
 		
 		
 	*— estimation —--------------------------------------------------*
     did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
-        if a100_r==1 & inrange(jahr,2010,2019), ///
+        if a100_r == 1 & inrange(jahr, 2010, 2019),           ///
+        effects(5) placebo(3) controls(ln_wohnungen)      ///
+        same_switchers weight( objects ) cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("same_switchers_w") 	(1)		  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+		
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 1 & inrange(jahr, 2010, 2019), ///
         effects(5) placebo(3) controls(ln_wohnungen) ///
         same_switchers normalized cluster(PLR_ID_num) graph_off
 
     *— build list of coeff & se to post —----------------------------*
-    post `P1' ("`ooi'") ("normalized") 				  ///
-        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
-        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
-        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
-        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
-        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
-        (0) (0)                                       ///
-        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
-        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
-        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+    post `P1' ("`ooi'") ("normalized") 	(1)			  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
 		
 	*— estimation —--------------------------------------------------*
     did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
-        if a100_r==1 & inrange(jahr,2010,2019), ///
+        if a100_r == 1 & inrange(jahr, 2010, 2019), ///
         effects(5) placebo(3) controls(ln_wohnungen) ///
         only_never_switchers cluster(PLR_ID_num) graph_off
 
     *— build list of coeff & se to post —----------------------------*
-    post `P1' ("`ooi'") ("only_never_switchers") 				  ///
-        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
-        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
-        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
-        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
-        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
-        (0) (0)                                       ///
-        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
-        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
-        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+    post `P1' ("`ooi'") ("only_never_switchers")	(1)	  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+		
+		*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 1 & inrange(jahr, 2010, 2019), ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        weight( objects ) cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("weighted") 	(1)			  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+	
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh 	///
+        if a100_r == 0 & inrange(jahr, 2010, 2019), 			///
+        effects(5) placebo(3) controls(ln_wohnungen) 		///
+        trends_nonparam(jahr) cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("base") (0)					///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+			*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 0 & inrange(jahr, 2010, 2019), ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        weight( objects ) cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("weighted") 	(0)			  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+		*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 0 & inrange(jahr, 2010, 2019),       ///
+        effects(5) placebo(3) controls(ln_wohnungen)      ///
+        same_switchers cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("same_switchers") 	(0)		  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+		
+		
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh 	///
+        if a100_r == 0 & inrange(jahr, 2010, 2019), 		///
+        effects(5) placebo(3) controls(ln_wohnungen) 		///
+        same_switchers normalized cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("normalized") 	(0)			  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
+	
+		
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 0 & inrange(jahr, 2010, 2019), ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        only_never_switchers cluster(PLR_ID_num) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P1' ("`ooi'") ("only_never_switchers")	(0)	  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) (e(Av_tot_effect)) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) (e(Av_tot_effect)) ///
+        (0) (0)                                       (0) ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) (0) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) (0) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1])) (0)
 		
 }
 
@@ -831,7 +1020,7 @@ foreach t of local times {
 }
 
 *--- 2. Reshape both stubs at once ----------------------------------------------
-reshape long d_ph_ se_, i(outcome treat) j(time) string
+reshape long d_ph_ se_ d_avg_, i(outcome treat a100) j(time) string
 
 
 *--- 3. Tidy variable names ------------------------------------------------------
@@ -850,6 +1039,9 @@ destring period, replace
 
 * Distinguish pre and post
 replace period = period*(-1) if substr(time,-2,1)=="m"
+
+* Compute mean d_avg_ for post period by outcome
+bys outcome treat a100: egen d_post_avg = mean(cond(period>=0, estimate, .))
 
 * obtain outcome variable
 gen reg = 1
@@ -887,18 +1079,18 @@ global msize_size .28cm
 colorpalette s2, locals
 
 twoway ///
-(scatter estimate period_shift 	 if reg == 1 & treat == "base", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
-(scatter estimate period_shift 	 if reg == 2 & treat == "base", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg == 2 & treat == "base", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
-(rspike min90 max90 period_shift if reg == 2 & treat == "base", lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
-(scatter estimate period_shift 	 if reg == 3 & treat == "base", msymbol(o) mcolor("`forest_green'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg == 3 & treat == "base", lwidth($rspike_lwidth95) lcolor("`forest_green'%60")) ///
-(rspike min90 max90 period_shift if reg == 3 & treat == "base", lwidth($rspike_lwidth90) lcolor("`forest_green'%60")) ///
-(scatter estimate period_shift 	 if reg == 4 & treat == "base", msymbol(o) mcolor("`dkorange'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg == 4 & treat == "base", lwidth($rspike_lwidth95) lcolor("`dkorange'%60")) ///
-(rspike min90 max90 period_shift if reg == 4 & treat == "base", lwidth($rspike_lwidth90) lcolor("`dkorange'%60")), ///
+(scatter estimate period_shift 	 if reg == 1 & a100 == 1 & treat == "base", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 1 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg == 1 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period_shift 	 if reg == 2 & a100 == 1 & treat == "base", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 2 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period_shift if reg == 2 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
+(scatter estimate period_shift 	 if reg == 3 & a100 == 1 & treat == "base", msymbol(o) mcolor("`forest_green'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 3 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`forest_green'%60")) ///
+(rspike min90 max90 period_shift if reg == 3 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`forest_green'%60")) ///
+(scatter estimate period_shift 	 if reg == 4 & a100 == 1 & treat == "base", msymbol(o) mcolor("`dkorange'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 4 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`dkorange'%60")) ///
+(rspike min90 max90 period_shift if reg == 4 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`dkorange'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
 legend(order( 1 "log(Ø rent)" 4 "log(med rent)" 7 "log(25p rent)" 10 "log(75p rent)" ) row(1) pos(6) ) ///
@@ -907,48 +1099,157 @@ xtitle($x_titel, size($xtitle_size) margin(medium)) ///
 ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_rent.png", replace
+graph export "$output/graphs/rent/dcdh_rent_base_inA100.png", replace
 
 
 colorpalette s2, locals
 
 twoway ///
-(scatter estimate period_shift2 	 if reg == 1 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift2 if reg == 1 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift2 if reg == 1 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
-(scatter estimate period_shift2 	 if reg == 1 & treat == "normalized", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift2 if reg == 1 & treat == "normalized", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
-(rspike min90 max90 period_shift2 if reg == 1 & treat == "normalized", lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
+(scatter estimate period_shift 	 if reg == 2 & a100 == 1 & treat == "base", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 2 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg == 2 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period_shift 	 if reg == 3 & a100 == 1 & treat == "base", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 3 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period_shift if reg == 3 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
+(scatter estimate period_shift 	 if reg == 4 & a100 == 1 & treat == "base", msymbol(o) mcolor("`forest_green'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 4 & a100 == 1 & treat == "base", lwidth($rspike_lwidth95) lcolor("`forest_green'%60")) ///
+(rspike min90 max90 period_shift if reg == 4 & a100 == 1 & treat == "base", lwidth($rspike_lwidth90) lcolor("`forest_green'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
-legend(order( 1 "Same Switchers" 4 "Normalized" ) row(1) pos(6) ) ///
+legend(order( 1 "log(med rent)" 4 "log(25p rent)" 7 "log(75p rent)" ) row(1) pos(6) ) ///
 ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
 xtitle($x_titel, size($xtitle_size) margin(medium)) ///
 ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_rent_switch.png", replace
+graph export "$output/graphs/rent/dcdh_rent_alt_switch_inA100.png", replace
+
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift 	 if reg == 1 & a100 == 0 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 1 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg == 1 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period_shift 	 if reg == 2 & a100 == 0 & treat == "same_switchers", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 2 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period_shift if reg == 2 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
+(scatter estimate period_shift 	 if reg == 3 & a100 == 0 & treat == "same_switchers", msymbol(o) mcolor("`forest_green'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 3 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`forest_green'%60")) ///
+(rspike min90 max90 period_shift if reg == 3 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`forest_green'%60")) ///
+(scatter estimate period_shift 	 if reg == 4 & a100 == 0 & treat == "same_switchers", msymbol(o) mcolor("`dkorange'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg == 4 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`dkorange'%60")) ///
+(rspike min90 max90 period_shift if reg == 4 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`dkorange'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend(order( 1 "log(Ø rent)" 4 "log(med rent)" 7 "log(25p rent)" 10 "log(75p rent)" ) row(1) pos(6) ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/rent/dcdh_rent_base_outA100.png", replace
 
 
 colorpalette s2, locals
 
 twoway ///
-(scatter estimate period_shift2 	 if reg == 1 & treat == "only_never_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift2 if reg == 1 & treat == "only_never_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift2 if reg == 1 & treat == "only_never_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
+(scatter estimate period_shift2   if reg == 1 & a100 == 1 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift2 if reg == 1 & a100 == 1 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift2 if reg == 1 & a100 == 1 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
-legend(order( 1 "Same Switchers" 4 "Normalized" ) row(1) pos(6) ) ///
+legend( off ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(-0.04(0.02)0.07, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/rent/dcdh_rent_switch_inA100.png", replace
+
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift2   if reg == 1 & a100 == 0 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift2 if reg == 1 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift2 if reg == 1 & a100 == 0 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend( off ) ///
 ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
 xtitle($x_titel, size($xtitle_size) margin(medium)) ///
 ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_rent_never_treated.png", replace
+graph export "$output/graphs/rent/dcdh_rent_switch_outA100.png", replace
 
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift2   if reg == 1 & a100 == 1 & treat == "only_never_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift2 if reg == 1 & a100 == 1 & treat == "only_never_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift2 if reg == 1 & a100 == 1 & treat == "only_never_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(line d_avg_ period_shift2        if reg == 1 & a100 == 1 & treat == "only_never_switchers", sort lpattern(dot) lcolor(gs8)), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend(order( 1 "Only Never Treated" ) row(1) pos(6) ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/rent/dcdh_rent_never_treat_inA100.png", replace
+
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift2   if reg == 1 & a100 == 0 & treat == "only_never_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift2 if reg == 1 & a100 == 0 & treat == "only_never_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift2 if reg == 1 & a100 == 0 & treat == "only_never_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend(order( 1 "Only Never Treated" ) row(1) pos(6) ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/rent/dcdh_rent_never_treat_outA100.png", replace
+
+
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift2 	if reg == 1 & a100 == 1 & treat == "weighted", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift2 	if reg == 1 & a100 == 1 & treat == "weighted", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift2 	if reg == 1 & a100 == 1 & treat == "weighted", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend(order( 1 "Weighted" ) row(1) pos(6) ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/rent/dcdh_rent_weight_inA100.png", replace
+
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift2 	if reg == 1 & a100 == 0 & treat == "weighted", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift2 	if reg == 1 & a100 == 0 & treat == "weighted", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift2 	if reg == 1 & a100 == 0 & treat == "weighted", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend(order( 1 "Weighted" ) row(1) pos(6) ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/rent/dcdh_rent_weight_outA100.png", replace
 
 *========================================================*
-**# == Rent Outcomes + By Treatment Path ==#
+**# == Section: Rent Outcomes + By Treatment Path ==#
 *========================================================*
 
 *--------------------------------------------------------*
@@ -1175,19 +1476,17 @@ xtitle("Years since Treatment")
  
 graph export "$output/max/graphs/dsdh/dcdh_rent_path.png", replace
 
-
 *========================================================*
-**# == Non Rent Outcomes ==#
+**# == SECTION: Non Rent Outcomes ==#
 *========================================================*
-
 restore, preserve
 
 *--------------------------------------------------------*
 * 1.  Open ONE master post-file (before the loop)        *
 *--------------------------------------------------------*
 postutil clear
-tempname P2
-postfile `P2' str15(outcome)                            /// which Y
+tempname P3
+postfile `P3' str15(outcome)                            /// which Y
               str20(treat)                             /// which treatment
               double(                                  ///
                   d_ph_p0  d_ph_p0_se  d_ph_p1  d_ph_p1_se ///
@@ -1197,14 +1496,14 @@ postfile `P2' str15(outcome)                            /// which Y
                   d_ph_m4  d_ph_m4_se)                 ///
     using "${output}/postfiles/dcdh_non_rent.dta", replace
 
-
 *--------------------------------------------------------*
 * 2.  Loop over outcomes (and treatment, if you add more)*
 *--------------------------------------------------------*
 foreach ooi in ln_pop ///
 				ln_r1_ewa_a_gesamt ///
-				ln_risk_high ///
-				ln_risk_low ///
+				risk_p_high ///
+				risk_p_med ///
+				risk_p_low ///
 				ln_tot_sgb12_w ///
 				ln_dau10 ///
 				ln_dau5 ///
@@ -1239,15 +1538,21 @@ foreach ooi in ln_pop ///
 				r1_mps_mittel_p ///
 				r1_mps_obmittel_p ///
 				r1_mps_ober_p { ///
+	
+	local ooi risk_p_med
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r==1 & inrange(jahr,2010,2019), ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        cluster(PLR_ID_num) same_switchers
 
     *— estimation —--------------------------------------------------*
     did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
-        if d_socialh >= 0 & a100_r==1 & inrange(jahr,2010,2019), ///
+        if a100_r==1 & inrange(jahr,2010,2019), ///
         effects(5) placebo(3) controls(ln_wohnungen) ///
-        trends_nonparam(jahr) cluster(PLR_ID_num) graph_off
+        cluster(PLR_ID_num) graph_off
 
     *— build list of coeff & se to post —----------------------------*
-    local postlist  ///
+    post `P3' ("`ooi'") ("base") 			  ///
         (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
         (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
         (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
@@ -1258,14 +1563,93 @@ foreach ooi in ln_pop ///
         (e(estimates)[8,1]) (sqrt(e(variances)[8,1]))       ///
         (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
 
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 1 & inrange( jahr, 2010, 2019 ), ///
+        effects( 5 ) placebo( 3 ) controls( ln_wohnungen ) ///
+        same_switchers cluster( PLR_ID_num ) graph_off
+
+	*— build list of coeff & se to post —----------------------------*
+    post `P3' ("`ooi'") ("same_switchers") 			  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
+        (0) (0)                                       ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+		
+		
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 1 & inrange( jahr, 2010, 2019 ), ///
+        effects( 5 ) placebo( 3 ) controls( ln_wohnungen ) ///
+        same_switchers normalized cluster( PLR_ID_num ) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P3' ("`ooi'") ("normalized") 				  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
+        (0) (0)                                       ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+		
+	*— estimation —--------------------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 1 & inrange( jahr, 2010, 2019 ), ///
+        effects( 5 ) placebo( 3 ) controls( ln_wohnungen ) ///
+        only_never_switchers cluster( PLR_ID_num ) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P3' ("`ooi'") ("only_never_switchers") 				  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
+        (0) (0)                                       ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
+	
+
+	*----------- choose weight variable ------------------------------*
+    local wvar r1_ewa_a_gesamt
+    if inlist("`ooi'","asin_objects_modern_year","p_objects_modern_year") {
+        local wvar objects
+    }
+
+	*— estimation with weights —-------------------------------------*
+    did_multiplegt_dyn `ooi' PLR_ID_num jahr c_dd_socialh ///
+        if a100_r == 1 & inrange( jahr, 2010, 2019 ), ///
+        effects( 5 ) placebo( 3 ) controls( ln_wohnungen ) ///
+        weight(`wvar') cluster( PLR_ID_num ) graph_off
+
+    *— build list of coeff & se to post —----------------------------*
+    post `P3' ("`ooi'") ("weighted")  ///
+        (e(estimates)[1,1]) (sqrt(e(variances)[1,1])) ///
+        (e(estimates)[2,1]) (sqrt(e(variances)[2,1])) ///
+        (e(estimates)[3,1]) (sqrt(e(variances)[3,1])) ///
+        (e(estimates)[4,1]) (sqrt(e(variances)[4,1])) ///
+        (e(estimates)[5,1]) (sqrt(e(variances)[5,1])) ///
+        (0) (0)                                       ///
+        (e(estimates)[7,1]) (sqrt(e(variances)[7,1])) ///
+        (e(estimates)[8,1]) (sqrt(e(variances)[8,1])) ///
+        (e(estimates)[9,1]) (sqrt(e(variances)[9,1]))
     *— append one row —---------------------------------------------*
-    post `P2' ("`ooi'") ("c_dd_socialh") `postlist'
+    * post `P3' ("`ooi'") ("c_dd_socialh") `postlist'
 }
 
 *--------------------------------------------------------*
 * 3.  Close the post-file (after the loop)               *
 *--------------------------------------------------------*
-postclose `P2'
+postclose `P3'
 
 *--------------------------------------------------------------------
 * 0.  Load the combined post-file
@@ -1286,7 +1670,7 @@ foreach v of varlist `r(varlist)' {
 *--------------------------------------------------------------------
 * 2.  Reshape to long
 *--------------------------------------------------------------------
-reshape long d_ph_ se_, i(outcome) j(time) string
+reshape long d_ph_ se_, i(outcome treat) j(time) string
 
 
 *--------------------------------------------------------------------
@@ -1311,20 +1695,71 @@ replace period = -period if substr(time, 1, 1)=="m"
 egen byte reg = group(outcome), label      // 1,2,3,…
 gen double period_shift = period * 10           // start with raw event time
 
+/*
+note regressions labels
+1 asin_objects_modern_year
+10 p_objects_modern_year
+35 risk_p_high
+36 risk_p_low
+37 risk_p_med
+38 
+*/
+
+* TEST
+local reg 7
+
+
+colorpalette s2, locals
+twoway ///
+(scatter estimate period 	 if reg==`reg' & treat == "same_switchers", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period if reg==`reg' & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period if reg==`reg' & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend( off ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xlabel(`xl', labsize($xlab_size)) ///
+xsize($x_size) ysize($y_size)
+
+local reg 7
+
+colorpalette s2, locals
+twoway ///
+(scatter estimate period 	 if reg==`reg' & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period if reg==`reg' & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period if reg==`reg' & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period 	 if reg==`reg' & treat == "weighted", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period if reg==`reg' & treat == "weighted", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period if reg==`reg' & treat == "weighted", lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
+(scatter estimate period 	 if reg==`reg' & treat == "base", msymbol(o) mcolor("`dkorange'%60") msize($msize_size)) ///
+(rspike min95 max95 period if reg==`reg' & treat == "base", lwidth($rspike_lwidth95) lcolor("`dkorange'%60")) ///
+(rspike min90 max90 period if reg==`reg' & treat == "base", lwidth($rspike_lwidth90) lcolor("`dkorange'%60")), ///
+yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
+legend( off ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xlabel(`xl', labsize($xlab_size)) ///
+xsize($x_size) ysize($y_size)
+
+
 * adjust for high and low risk
 replace period_shift = period_shift - 1  if reg == 6 // pop berlin
 replace period_shift = period_shift + 1  if reg == 7 // pop RWI
 
 * population
-replace period_shift = period_shift - 1  if reg == 9 // low risk
-replace period_shift = period_shift + 1  if reg == 8 // high risk
+replace period_shift = period_shift - 1  if reg == 35 // low risk
+replace period_shift = period_shift + 1  if reg == 36 // high risk
 
 * unemployed
-replace period_shift = period_shift - 1  if reg == 15 // SGB12
-replace period_shift = period_shift + 1  if reg == 38 // Unemployed
+replace period_shift = period_shift - 1  if reg == 13 // SGB12
+replace period_shift = period_shift + 1  if reg == 39 // Unemployed
 
 * (1) East Europe= Balkan+East Europe;  (2) Southern Europe = Griechen, SpanPort, Italy, (3) Afrika; (4) Asia, (5) Turkey, (6) Arabic, (7) German;  (drop other) 
-replace period_shift = period_shift - 1.5  	if reg == 37 // South Europe
+* replace period_shift = period_shift - 1.5  	if reg == 37 // South Europe
 replace period_shift = period_shift - 1  	if reg == 19 // German
 replace period_shift = period_shift -  .5	if reg == 2 // East Europe
 replace period_shift = period_shift +  .5  	if reg == 19 // German
@@ -1358,9 +1793,9 @@ local xl -40 "-4" -30 "-3" -20 "-2" -10 "-1" 0 "0" ///
            10  "1"  20  "2"  30  "3"  40 "4"
 * Population
 twoway ///
-(scatter estimate period_shift 	 if reg==12, msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==12, lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg==12, lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
+(scatter estimate period_shift 	 if reg==10 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==10 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg==10 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-40(10)40, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
 legend( off ) ///
@@ -1370,20 +1805,23 @@ ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xlabel(`xl', labsize($xlab_size)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_p_renov.png", replace
+graph export "$output/graphs/renovation/dcdh_p_renov.png", replace
 
 colorpalette s2, locals
+
+global x_size 14cm
+global y_size 11cm
 
 local xl -40 "-4" -30 "-3" -20 "-2" -10 "-1" 0 "0" ///
            10  "1"  20  "2"  30  "3"  40 "4"
 * Population
 twoway ///
-(scatter estimate period_shift 	 if reg==6, msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==6, lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg==6, lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
-(scatter estimate period_shift 	 if reg==7, msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==7, lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
-(rspike min90 max90 period_shift if reg==7, lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
+(scatter estimate period_shift 	 if reg==6 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==6 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg==6 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period_shift 	 if reg==7 & treat == "same_switchers", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==7 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period_shift if reg==7 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-40(10)40, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
 legend(order( 1 "ODB" 4 "RWI" ) row(1) pos(6) ) ///
@@ -1393,33 +1831,38 @@ ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xlabel(`xl', labsize($xlab_size)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_ln_pop.png", replace
+graph export "$output/graphs/pop/dcdh_ln_pop.png", replace
 
 colorpalette s2, locals
 
 *  x-axis ticks at data –40 –30 … 40 but labelled –4 … 4
 local xl -40 "-4" -30 "-3" -20 "-2" -10 "-1" 0 "0" ///
            10  "1"  20  "2"  30  "3"  40 "4"
+
 global x_size 14cm
-global y_size 10cm
+global y_size 11cm
 
 twoway ///
-(scatter estimate period_shift 	 if reg==8, msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==8, lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg==8, lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
-(scatter estimate period_shift 	 if reg==9, msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==9, lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
-(rspike min90 max90 period_shift if reg==9, lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
+(scatter estimate period_shift 	 if reg==35 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==35 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg==35 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period_shift 	 if reg==37 & treat == "same_switchers", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==37 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period_shift if reg==37 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
+(scatter estimate period_shift 	 if reg==36 & treat == "same_switchers", msymbol(o) mcolor("`forest_green'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==36 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`forest_green'%60")) ///
+(rspike min90 max90 period_shift if reg==36 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`forest_green'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
-legend(order( 1  "ln(High Risk)" 4 "ln(Low Risk)") row(1) pos(6) ) ///
+legend(order( 1  "% High Risk" 4 "% Med Risk" 7 "% Low Risk") row(1) pos(6) ) ///
 ytitle("Estimated Treatment", size($ytitle_size) margin(zero)) ///
 xtitle($x_titel, size($xtitle_size) margin(medium)) ///
 xlabel(`xl', labsize($xlab_size)) ///
-ylabel(-.25(.1).45, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_risk_rwi.png", replace
+graph export "$output/graphs/risk/dcdh_risk_rwi.png", replace
+
 
 colorpalette s2, locals
 
@@ -1427,12 +1870,12 @@ local xl -40 "-4" -30 "-3" -20 "-2" -10 "-1" 0 "0" ///
            10  "1"  20  "2"  30  "3"  40 "4"
 * Population
 twoway ///
-(scatter estimate period_shift 	 if reg==15, msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==15, lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg==15, lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
-(scatter estimate period_shift 	 if reg==38, msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==38, lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
-(rspike min90 max90 period_shift if reg==38, lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
+(scatter estimate period_shift 	 if reg==13 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==13 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
+(rspike min90 max90 period_shift if reg==13 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
+(scatter estimate period_shift 	 if reg==39 & treat == "same_switchers", msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
+(rspike min95 max95 period_shift if reg==39 & treat == "same_switchers", lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
+(rspike min90 max90 period_shift if reg==39 & treat == "same_switchers", lwidth($rspike_lwidth90) lcolor("`maroon'%60")), ///
 yline(0, lpattern(dash) lcolor(gs8)) xlabel(-40(10)40, labsize($xlab_size) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
 legend(order( 1 "SGB12" 4 "Unemployed" ) row(1) pos(6) ) ///
@@ -1442,7 +1885,7 @@ ylabel(-.45(.1).35, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) 
 xlabel(`xl', labsize($xlab_size)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_unemp.png", replace
+graph export "$output/graphs/pop/dcdh_unemp.png", replace
 
 colorpalette s2, locals
 
@@ -1565,11 +2008,11 @@ forvalues r = 30/34 {
 
     /* three layers for this cohort */
     local graphcmd `graphcmd' ///
-        (scatter estimate period_shift if reg==`r', ///
+        (scatter estimate period_shift if reg==`r' & treat == "same_switchers", ///
             msymbol(o) mcolor("`col'") msize($msize_size)) ///
-        (rspike  min95 max95 period_shift if reg==`r', ///
+        (rspike  min95 max95 period_shift if reg==`r' & treat == "same_switchers", ///
             lwidth($rspike_lwidth95) lcolor("`col'")) ///
-        (rspike  min90 max90 period_shift if reg==`r', ///
+        (rspike  min90 max90 period_shift if reg==`r' & treat == "same_switchers", ///
             lwidth($rspike_lwidth90) lcolor("`col'"))
 
     /* keep only the scatter layer in the legend */
@@ -1601,170 +2044,6 @@ twoway `graphcmd', ///
 	
 graph export "$output/max/graphs/dsdh/dcdh_p_cars_rwi.png", replace
 
-*========================================================*
-**# == Continous Treatment - All Outcomes ==#
-*========================================================*
-restore, preserve
-
-*-------------------------------------------------------------------*
-* 1.  Loop over each outcome and generate a post-file (in the loop) *
-*-------------------------------------------------------------------*
-foreach ooi in ln_qm_miete_kalt qm_miete_kalt {
-	
-	postutil clear
-	tempname P3_`ooi'
-	postfile `P3_`ooi'' str15(treat) ///
-	double(d_ph_p0 d_ph_p0_se d_ph_p1 d_ph_p1_se d_ph_p2 d_ph_p2_se d_ph_p3 d_ph_p3_se d_ph_p4 d_ph_p4_se ///
-	d_ph_m1 d_ph_m1_se d_ph_m2 d_ph_m2_se d_ph_m3 d_ph_m3_se d_ph_m4 d_ph_m4_se ) ///
-	using "$output/postfiles/dcdh_cont_es_`ooi'", replace
-
-	* absorbing treatment: when becoming one your are staying one forever
-	did_multiplegt_dyn `ooi' PLR_ID_num jahr ///
-        c_dd_socialh                         			///
-        if a100_r==1 & inrange(jahr, 2010, 2019),         ///
-        effects(5) placebo(3) controls(ln_wohnungen)    ///
-        cluster(PLR_ID_num) graph_off
-
-	post `P3_`ooi'' ("c_dd_socialh") ///
-	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
-	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
-	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
-	( e(estimates)[4, 1] ) ( sqrt(e(variances)[4, 1]) ) ///
-	( e(estimates)[5, 1] ) ( sqrt(e(variances)[5, 1]) ) ///
-	(0) (0) ///
-	( e(estimates)[7, 1] ) ( sqrt(e(variances)[7, 1]) ) ///
-	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
-	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
-
-	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		///
-        loss_flow100                         		///
-        if a100_r==1 & inrange(jahr, 2010, 2019),         ///
-        effects(5) placebo(3) controls(ln_wohnungen)    ///
-        normalized continuous(1) cluster(PLR_ID_num) graph_off
-	
-	post `P3_`ooi'' ("loss_flow100") ///
-	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
-	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
-	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
-	( e(estimates)[4, 1] ) ( sqrt(e(variances)[4, 1]) ) ///
-	( e(estimates)[5, 1] ) ( sqrt(e(variances)[5, 1]) ) ///
-	(0) (0) ///
-	( e(estimates)[7, 1] ) ( sqrt(e(variances)[7, 1]) ) ///
-	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
-	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
-
-	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		///
-        cumloss100                         		///
-        if a100_r==1 & inrange(jahr, 2010, 2019),         ///
-        effects(5) placebo(3) controls(ln_wohnungen)    ///
-        normalized continuous(1) cluster(PLR_ID_num) graph_off
-
-	post `P3_`ooi'' ("cumloss100") ///
-	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
-	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
-	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
-	( e(estimates)[4, 1] ) ( sqrt(e(variances)[4, 1]) ) ///
-	( e(estimates)[5, 1] ) ( sqrt(e(variances)[5, 1]) ) ///
-	(0) (0) ///
-	( e(estimates)[7, 1] ) ( sqrt(e(variances)[7, 1]) ) ///
-	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
-	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
-
-	postclose `P3_`ooi''
-}
-
-
-use "$output/postfiles/dcdh_cont_ln_qm_miete_kalt", clear
-
-*--- 1. Give SE variables a clean, parallel stub --------------------------------
-local times m4 m3 m2 m1 p0 p1 p2 p3 p4
-foreach t of local times {
-    rename d_ph_`t'_se   se_`t'     // d_ph_m1_se  ->  se_m1
-}
-
-*--- 2. Reshape both stubs at once ----------------------------------------------
-reshape long d_ph_ se_, i(treat) j(time) string
-
-*--- 3. Tidy variable names ------------------------------------------------------
-rename d_ph_  estimate
-rename se_    se
-
-*--- 5. Confidence intervals -----------------------------------------------------
-gen max90 = estimate + 1.78*se
-gen min90 = estimate - 1.78*se
-gen max95 = estimate + 1.96*se
-gen min95 = estimate - 1.96*se
-
-* Generate period indicators
-gen period =substr(time,-1,1)
-destring period, replace
-
-* Distinguish pre and post
-replace period = period*(-1) if substr(time,-2,1)=="m"
-
-* obtain outcome variable
-gen reg = 1
-replace reg = 2 if regexm(treat, "loss_flow100")
-replace reg = 3 if regexm(treat, "cumloss100")
-
-gen period_shift=period
-replace period_shift = period - .2 if reg == 1
-replace period_shift = period + .2 if reg == 3
-
-* set global for size
-global ylab_size .5cm
-global xlab_size .5cm
-global ytitle_size .5cm
-global xtitle_size .5cm
-global x_titel "Years since treatment"
-global x_size 14cm
-global y_size 11cm
-global rspike_lwidth95 .04cm
-global rspike_lwidth90 .07cm
-global legend_size .5cm
-global legend_title_size .3cm
-global subtitle_size .4cm
-global xline_width .04cm
-global msize_size .28cm
-
-colorpalette s2, locals
-
-twoway ///
-(scatter estimate period_shift 	 if reg==1, msymbol(o) mcolor("`navy'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==1, lwidth($rspike_lwidth95) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg==1, lwidth($rspike_lwidth90) lcolor("`navy'%60")) ///
-(scatter estimate period_shift 	 if reg==2, msymbol(o) mcolor("`maroon'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==2, lwidth($rspike_lwidth95) lcolor("`maroon'%60")) ///
-(rspike min90 max90 period_shift if reg==2, lwidth($rspike_lwidth90) lcolor("`maroon'%60")) ///
-(scatter estimate period_shift 	 if reg==3, msymbol(o) mcolor("`forest_green'%60") msize($msize_size)) ///
-(rspike min95 max95 period_shift if reg==3, lwidth($rspike_lwidth95) lcolor("`forest_green'%60")) ///
-(rspike min90 max90 period_shift if reg==3, lwidth($rspike_lwidth90) lcolor("`forest_green'%60")), ///
-yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size) ) ///
-graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
-legend(order(1 "Dummy" 4 "One unit Change" 7 "Change in SH share") pos(6) rows(1)) ///
-ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
-xtitle($x_titel, size($xtitle_size) margin(medium)) ///
-ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
-xsize($x_size) ysize($y_size)
-
-
-colorpalette s2, locals
-
-twoway ///
-(scatter estimate period_shift 	 if reg==1, msymbol(o) mcolor("`navy'%60") msize($msize_size) ) ///
-(rspike min95 max95 period_shift if reg==1, lwidth($rspike_lwidth95 ) lcolor("`navy'%60")) ///
-(rspike min90 max90 period_shift if reg==1, lwidth($rspike_lwidth90 ) lcolor("`navy'%60")), ///
-yline(0, lpattern(dash) lcolor(gs8)) xlabel(-4(1)4, labsize($xlab_size ) ) ///
-graphregion(color(white) lcolor(white) margin(l-3 r+1)) scale(0.9) ///
-legend(off ) ///
-ytitle("Estimated Treatment", size($ytitle_size ) margin(medium)) ///
-xtitle($x_titel, size($xtitle_size ) margin(medium)) ///
-ylabel(, angle(0) labsize($ylab_size ) grid valuel glc(gs2) glp(dot)) ///
-xsize($x_size ) ysize($y_size )
-
-graph export "$output/max/graphs/dsdh/dcdh_ln_rent.png", replace
-
-xxx
 
 * ================================================================== *
 **# = Estimation with eventstudyinteract of Sun and Abraham (2020) = *

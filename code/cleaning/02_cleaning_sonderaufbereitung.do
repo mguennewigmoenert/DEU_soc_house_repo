@@ -54,7 +54,7 @@ replace modern_year = 1 if letzte_modernisierung == jahr
 g modern_year_1 = 0
 replace modern_year_1 = (letzte_modernisierung == jahr + 1)
 
- collapse (mean) mietewarm mietekalt qm_miete_kalt qm_miete_warm (median) medmietewarm=mietewarm medmietekalt=mietekalt med_qm_kalt=qm_miete_kalt med_qm_warm=qm_miete_warm (sd) sd_miete = mietewarm sd_qm_kalt = qm_miete_kalt (count) n = mietekalt (sum) objects_moden = modern objects_modern_year=modern_year objects_modern_year_1=modern_year_1, by(PLR_ID jahr)
+collapse (mean) mietewarm mietekalt qm_miete_kalt qm_miete_warm (median) medmietewarm=mietewarm medmietekalt=mietekalt med_qm_kalt=qm_miete_kalt med_qm_warm=qm_miete_warm (sd) sd_miete = mietewarm sd_qm_kalt = qm_miete_kalt (count) n = mietekalt (sum) objects_moden = modern objects_modern_year=modern_year objects_modern_year_1=modern_year_1, by(PLR_ID jahr)
 
 rename n objects 
 

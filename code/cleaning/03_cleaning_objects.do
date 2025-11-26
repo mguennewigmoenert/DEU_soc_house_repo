@@ -12,17 +12,17 @@
 use "${IN}/Sonderaufbereitung_RED_v9_WM.dta", clear 
 
  
- rename ajahr jahr 
- tabstat obid, by(jahr) stats(count)
+rename ajahr jahr 
+tabstat obid, by(jahr) stats(count)
  
 * Only keep observations in Berlin 
- keep if kid2019 == 11000
+keep if kid2019 == 11000
  
- replace mietekalt=. if mietekalt<0 
- replace mietewarm=. if mietewarm<0
- replace wohnflaeche = . if wohnflaeche<0 
- gen qm_miete_kalt=mietekalt/wohnflaeche 
- gen qm_miete_warm=mietewarm/wohnflaeche 
+replace mietekalt=. if mietekalt<0 
+replace mietewarm=. if mietewarm<0
+replace wohnflaeche = . if wohnflaeche<0 
+gen qm_miete_kalt=mietekalt/wohnflaeche 
+gen qm_miete_warm=mietewarm/wohnflaeche 
  
 * Drop implausible high values 
  drop if qm_miete_kalt>40 
@@ -35,7 +35,8 @@ foreach var of varlist qm_miete_kalt qm_miete_warm mietekalt mietewarm {
  replace `var' = mean_`var'
  drop mean_`var'
 }
- duplicates drop obid jahr, force
+
+duplicates drop obid jahr, force
  
 keep qm_miete_kalt qm_miete_warm obid plz mietekalt mietewarm nebenkosten wohnflaeche laufzeittage letzte_modernisierung jahr foerderung hits PLR_ID 
  
