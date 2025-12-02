@@ -435,6 +435,11 @@ did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr 		///
         effects(5) placebo(3)   ///
         normalized continuous(1) cluster(PLR_ID_num)
 
+did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr ///
+        d_socialh_per100                         			///
+        if a100_r==1 & inrange(jahr, 2010, 2019),         ///
+        effects(5) placebo(3) controls(ln_wohnungen)    ///
+        cluster(PLR_ID_num) same_switchers
 
 	
 *========================================================*

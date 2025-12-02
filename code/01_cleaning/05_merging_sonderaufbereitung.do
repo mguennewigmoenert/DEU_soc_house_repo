@@ -138,6 +138,33 @@ drop _merge
 tempfile socialhousing 
 save `socialhousing', replace 
 
+**# Add Wohnlage
+* add sgb12 receivers to main dataframe
+import delimited "/Users/maxmonert/Library/CloudStorage/Dropbox/Projects/DEU Housing Project/data/temp/whnlage_final.csv",  stringcols(1) clear
+
+* set key variable type 
+tostring plr_id, replace
+destring year, replace
+
+* add zero to string
+replace plr_id = "0" + plr_id if length(plr_id) == 7
+
+* rename for merging
+rename plr_id PLR_ID
+rename year jahr 
+
+merge 1:1 PLR_ID jahr using `socialhousing'
+drop if strpos(PLR_ID, "insgesamt")
+* check merge outcome
+sort PLR_ID jahr
+br 
+
+* drop merge column from previous merge
+drop _merge 
+
+tempfile socialhousing 
+save `socialhousing', replace 
+
 **# Add Hedonic rents
 * add sgb12 receivers to main dataframe
 use "${TEMP}/hedonic_regressions_a.dta",  clear

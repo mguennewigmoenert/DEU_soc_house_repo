@@ -40,7 +40,7 @@ g modern_year = 0
 replace modern_year = 1 if letzte_modernisierung == jahr
 
 g modern_year_1 = 0
-replace modern_year_1 = (letzte_modernisierung == jahr + 1)
+replace modern_year_1 = (letzte_modernisierung == jahr - 1)
 
 * scale treatment variables
 g d_socialh_scale = d_socialh *10
@@ -48,6 +48,24 @@ g sh_d_socialh_scale = sh_d_socialh *1000
 
 bysort obid: gen d_sh = (foerderung == 1)
 
+* 1. Count total appearances per property
+bysort obid: gen n_obs = _N
+
+* 2. Flag whether this observation is social housing
+gen is_social = foerderung == 1
+
+* 3. Count how many times each property was social housing
+bysort obid: egen n_social = total(is_social)
+
+* 4. Count non-social appearances
+gen n_nonsocial = n_obs - n_social
+
+* 5. Classification flags:
+gen property_once        = (n_obs == 1)
+gen ever_social          = (n_social > 0)
+gen always_social        = (n_social == n_obs)
+gen only_social_once     = (n_social == 1)
+gen switched_out         = (n_social > 0 & n_nonsocial > 0)
 xxx
 * ============================= *
 **# === Regression Results === *
@@ -55,10 +73,14 @@ xxx
 g ln_pop = ln(e_e)
 
 did_multiplegt_dyn objects PLR_ID_num jahr c_dd_socialh if d_socialh >= 0 & a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung == 1, effects(5) placebo(3) cluster(PLR_ID_num)
-did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen )
-did_multiplegt_dyn modern_year PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen )
 
-did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr sh_d_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) continous(1)
+did_multiplegt_dyn ln_wohnflaeche PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, effects(5) placebo(3) cluster(PLR_ID_num)
+
+did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh if d_socialh>=0 & a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen )
+
+did_multiplegt_dyn modern_year_1 PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) controls( ln_wohnungen ) same_switchers
+
+did_multiplegt_dyn ln_qm_miete_kalt obid jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) cluster(PLR_ID_num) 
 
 did_multiplegt_dyn ln_qm_miete_kalt PLR_ID_num jahr c_dd_socialh ///
 if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
@@ -126,27 +148,36 @@ did_multiplegt_dyn modern_year PLR_ID_num jahr sh_d_socialh if d_socialh>=0 & a1
 graph export $output/max/graphs/dsdh/dcdh_prop_sh_d_socialh_modern_year.png, as(png) replace
 
 
+*--------------------------------------------------------*
+* 0.  Open ONE master post-file (before the loop)        *
+*--------------------------------------------------------*
+postutil clear
+tempname P9
+postfile `P9' 	str15(outcome)	/// which Y
+				str15(treat) 	///
+				double(a100) 	/// A100 Dummy
+				double(d_ph_p0 d_ph_p0_se d_ph_p1 d_ph_p1_se ///
+					   d_ph_p2 d_ph_p2_se d_ph_p3 d_ph_p3_se ///
+					   d_ph_p4 d_ph_p4_se d_ph_m1 d_ph_m1_se ///
+					   d_ph_m2 d_ph_m2_se d_ph_m3 d_ph_m3_se ///
+					   d_ph_m4 d_ph_m4_se ) ///
+				using "$output/postfiles/dcdh_obj_rent_d.dta", replace
+
+
 
 *-------------------------------------------------------------------*
 * 1.  Loop over each outcome and generate a post-file (in the loop) *
 *-------------------------------------------------------------------*
-foreach ooi in ln_qm_miete_kalt {
-	
-	postutil clear
-	tempname P9_`ooi'
-	postfile `P9_`ooi'' str15(treat) ///
-	double(d_ph_p0 d_ph_p0_se d_ph_p1 d_ph_p1_se d_ph_p2 d_ph_p2_se d_ph_p3 d_ph_p3_se d_ph_p4 d_ph_p4_se ///
-	d_ph_m1 d_ph_m1_se d_ph_m2 d_ph_m2_se d_ph_m3 d_ph_m3_se d_ph_m4 d_ph_m4_se ) ///
-	using "$output/postfiles/dcdh_cont_obj_`ooi'", replace
+foreach ooi in ln_qm_miete_kalt modern_year {
 
 	* absorbing treatment: when becoming one your are staying one forever
 	did_multiplegt_dyn `ooi' PLR_ID_num jahr ///
         c_dd_socialh                         			///
-        if a100_r==1 & d_socialh>=0 & inrange(jahr, 2010, 2019) & foerderung!=1, ///
+        if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
         effects(5) placebo(3) controls(ln_wohnungen)    ///
         cluster(PLR_ID_num) graph_off
 
-	post `P9_`ooi'' ("c_dd_socialh") ///
+	post `P9' ("`ooi'") ("base") (1) 						///
 	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
 	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
 	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
@@ -157,13 +188,14 @@ foreach ooi in ln_qm_miete_kalt {
 	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
 	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
 
-	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		///
-        d_socialh_scale                         	/// change in social housing
-        if a100_r==1 & d_socialh>=0 & inrange(jahr, 2010, 2019) & foerderung!=1, ///
-        effects(5) placebo(3) controls(ln_wohnungen)    ///
-        continuous(1) cluster(PLR_ID_num) graph_off
+	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		 ///
+        c_dd_socialh                         		 /// change in social housing
+        if a100_r == 1 & 			 ///
+		inrange(jahr, 2010, 2019) & foerderung!=1, 	 ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        same_switchers cluster(PLR_ID_num) graph_off
 	
-	post `P9_`ooi'' ("d_socialh_scale") ///
+	post `P9' ("`ooi'") ("same_switchers") (1) 				///
 	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
 	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
 	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
@@ -175,12 +207,12 @@ foreach ooi in ln_qm_miete_kalt {
 	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
 
 	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		///
-        sh_d_socialh_scale                         		///
-        if a100_r==1 & d_socialh>=0 & inrange(jahr, 2010, 2019) & foerderung!=1, ///
+        c_dd_socialh                         		///
+        if a100_r == 1 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
         effects(5) placebo(3) controls(ln_wohnungen)    ///
-        continuous(1) cluster(PLR_ID_num) graph_off
+        same_switchers only_never_switchers cluster(PLR_ID_num) graph_off
 
-	post `P9_`ooi'' ("sh_d_socialh_scale") ///
+	post `P9' ("`ooi'") ("only_never_switchers") (1) 		///
 	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
 	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
 	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
@@ -191,11 +223,65 @@ foreach ooi in ln_qm_miete_kalt {
 	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
 	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
 
-	postclose `P9_`ooi''
+	* absorbing treatment: when becoming one your are staying one forever
+	did_multiplegt_dyn `ooi' PLR_ID_num jahr ///
+        c_dd_socialh                         			///
+        if a100_r == 0 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
+        effects(5) placebo(3) controls(ln_wohnungen)    ///
+        cluster(PLR_ID_num) graph_off
+
+	post `P9' ("`ooi'") ("base") (0) 						///
+	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
+	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
+	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
+	( e(estimates)[4, 1] ) ( sqrt(e(variances)[4, 1]) ) ///
+	( e(estimates)[5, 1] ) ( sqrt(e(variances)[5, 1]) ) ///
+	(0) (0) ///
+	( e(estimates)[7, 1] ) ( sqrt(e(variances)[7, 1]) ) ///
+	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
+	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
+
+	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		 ///
+        c_dd_socialh                         		 /// change in social housing
+        if a100_r == 0 & inrange(jahr, 2010, 2019) & ///
+		foerderung!=1, 	 ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        same_switchers cluster(PLR_ID_num) graph_off
+	
+	post `P9' ("`ooi'") ("same_switchers") (0) 				///
+	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
+	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
+	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
+	( e(estimates)[4, 1] ) ( sqrt(e(variances)[4, 1]) ) ///
+	( e(estimates)[5, 1] ) ( sqrt(e(variances)[5, 1]) ) ///
+	(0) (0) ///
+	( e(estimates)[7, 1] ) ( sqrt(e(variances)[7, 1]) ) ///
+	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
+	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
+
+	did_multiplegt_dyn `ooi' PLR_ID_num jahr 		///
+        c_dd_socialh                         		///
+        if a100_r == 0 & inrange(jahr, 2010, 2019) & foerderung != 1, ///
+        effects(5) placebo(3) controls(ln_wohnungen)    ///
+        same_switchers only_never_switchers cluster(PLR_ID_num) graph_off
+
+	post `P9' ("`ooi'") ("only_never_switchers") (0) 		///
+	( e(estimates)[1, 1] ) ( sqrt(e(variances)[1, 1]) ) ///
+	( e(estimates)[2, 1] ) ( sqrt(e(variances)[2, 1]) ) ///
+	( e(estimates)[3, 1] ) ( sqrt(e(variances)[3, 1]) ) ///
+	( e(estimates)[4, 1] ) ( sqrt(e(variances)[4, 1]) ) ///
+	( e(estimates)[5, 1] ) ( sqrt(e(variances)[5, 1]) ) ///
+	(0) (0) ///
+	( e(estimates)[7, 1] ) ( sqrt(e(variances)[7, 1]) ) ///
+	( e(estimates)[8, 1] ) ( sqrt(e(variances)[8, 1]) ) ///
+	( e(estimates)[9, 1] ) ( sqrt(e(variances)[9, 1]) )
+	
 }
 
+postclose `P9'
 
-use "$output/postfiles/dcdh_cont_obj_ln_qm_miete_kalt", clear
+
+use "$output/postfiles/dcdh_obj_rent_d.dta", clear
 
 *--- 1. Give SE variables a clean, parallel stub --------------------------------
 local times m4 m3 m2 m1 p0 p1 p2 p3 p4
@@ -204,7 +290,7 @@ foreach t of local times {
 }
 
 *--- 2. Reshape both stubs at once ----------------------------------------------
-reshape long d_ph_ se_, i(treat) j(time) string
+reshape long d_ph_ se_, i(outcome treat a100) j(time) string
 
 
 *--- 3. Tidy variable names ------------------------------------------------------
@@ -225,11 +311,11 @@ destring period, replace
 replace period = period*(-1) if substr(time,-2,1)=="m"
 
 * obtain treat variable
-egen byte reg = group(treat), label
+egen byte reg = group(outcome), label
 
 gen period_shift=period
-replace period_shift = period - .2 if reg == 1
-replace period_shift = period + .2 if reg == 3
+* replace period_shift = period - .2 if reg == 1
+* replace period_shift = period + .2 if reg == 3
 
 
 * set global for size
@@ -272,9 +358,9 @@ xsize($x_size) ysize($y_size)
 colorpalette s2, locals
 
 twoway ///
-(scatter estimate period_shift 	 if reg==1, msymbol(o) mcolor("`navy'%60") msize($msize_size ) ) ///
-(rspike min95 max95 period_shift if reg==1, lwidth( $rspike_lwidth95 ) lcolor("`navy'%60" ) ) ///
-(rspike min90 max90 period_shift if reg==1, lwidth( $rspike_lwidth90 ) lcolor("`navy'%60" ) ), ///
+(scatter estimate period_shift 	 if reg ==1 & a100==1 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size ) ) ///
+(rspike min95 max95 period_shift if reg ==1 & a100==1 & treat == "same_switchers", lwidth( $rspike_lwidth95 ) lcolor("`navy'%60" ) ) ///
+(rspike min90 max90 period_shift if reg ==1 & a100==1 & treat == "same_switchers", lwidth( $rspike_lwidth90 ) lcolor("`navy'%60" ) ), ///
 yline(0, lpattern(dash) lcolor(gs8) ) xlabel(-4(1)4, labsize($xlab_size ) ) ///
 graphregion(color(white) lcolor(white) margin(l-3 r+1) ) scale(0.9) ///
 legend( off ) ///
@@ -283,7 +369,24 @@ xtitle($x_titel, size($xtitle_size) margin(medium)) ///
 ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
 xsize($x_size) ysize($y_size)
 
-graph export "$output/max/graphs/dsdh/dcdh_cont_objt_ln_rent.png", replace
+graph export "$output/graphs/rent/dcdh_objt_d_ln_rent_inA100.png", replace
+
+
+colorpalette s2, locals
+
+twoway ///
+(scatter estimate period_shift 	 if reg == 2 & a100==1 & treat == "same_switchers", msymbol(o) mcolor("`navy'%60") msize($msize_size ) ) ///
+(rspike min95 max95 period_shift if reg == 2 & a100==1 & treat == "same_switchers", lwidth( $rspike_lwidth95 ) lcolor("`navy'%60" ) ) ///
+(rspike min90 max90 period_shift if reg == 2 & a100==1 & treat == "same_switchers", lwidth( $rspike_lwidth90 ) lcolor("`navy'%60" ) ), ///
+yline(0, lpattern(dash) lcolor(gs8) ) xlabel(-4(1)4, labsize($xlab_size ) ) ///
+graphregion(color(white) lcolor(white) margin(l-3 r+1) ) scale(0.9) ///
+legend( off ) ///
+ytitle("Estimated Treatment", size($ytitle_size) margin(medium)) ///
+xtitle($x_titel, size($xtitle_size) margin(medium)) ///
+ylabel(, angle(0) labsize($ylab_size) grid valuel glc(gs2) glp(dot)) ///
+xsize($x_size) ysize($y_size)
+
+graph export "$output/graphs/renovation/dcdh_objt_d_pmodern_inA100.png", replace
 
 
 foreach treat in c_dd_socialh d_socialh sh_d_socialh {

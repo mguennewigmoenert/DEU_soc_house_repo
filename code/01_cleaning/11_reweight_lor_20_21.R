@@ -371,6 +371,17 @@ whnlage_final <- int_lor_2021_lor_2020_whnlage |>
 # check if all variable are aggregated to new level
 table(whnlage_final$year)
 
+# adjust unweighted datafrem for merging
+whnlage_final = whnlage_final |>
+  dplyr::rename(
+    PLR_ID = target_id,  # Rename `target_id` → `RAUMID`
+  )
+
+# Check duplicates in whnlage_final
+whnlage_final |>
+  count(PLR_ID, year, name = "n") |>
+  filter(n > 1)
+
 # ---- Generate weighted Wohndauer data --------------------------------------------------------------
 # adjust to dataframe
 whndauer_l20 <- whndauer_l20 |>

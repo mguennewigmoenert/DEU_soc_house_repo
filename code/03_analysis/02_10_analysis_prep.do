@@ -22,16 +22,30 @@ global treat_count : list sizeof global(treat_c)
 * Regression Analyses without stacking
 ********************************************************************************
 * upload treated file
-use "${TEMP}/socialhousing_onlytreated.dta", clear
-keep if treated1==1
-keep PLR_ID
+* use "${TEMP}/socialhousing_onlytreated.dta", clear
+* keep if treated1==1
+* keep PLR_ID
 
 * store as tempfile for maerging
-tempfile treatment 
-save `treatment'
+* tempfile treatment 
+* save `treatment'
 
 *use "${TEMP}/socialhousing_1.dta", clear 
 use "${TEMP}/socialhousing_1_since2008.dta", clear 
+
+/* Generate an early check if later changes differ
+* Numeric panel id for PLR
+encode PLR_ID, gen(plr_id_n)
+xtset plr_id_n jahr, yearly
+
+* early change
+gen d_socialh_raw = (d.socialh)*(-1) // Change in the social housing
+
+* This for the end of the code
+br PLR_ID jahr d_socialh_raw d_socialh
+g soc_d2 = d_socialh_raw - d_socialh
+*/
+
 * destring PLR_ID, gen(plr_code)
 * save "${TEMP}/socialhousing_1_since2008.dta", replace
 
@@ -59,6 +73,8 @@ gen sbahn_r = 0
 replace sbahn_r = 1 if sring==1
 drop _merge
 
+tab jahr
+
 * merge with sbahn ring
 merge m:1 PLR_ID using "${TEMP}/autoring_lor.dta"
 
@@ -66,6 +82,8 @@ merge m:1 PLR_ID using "${TEMP}/autoring_lor.dta"
 gen a100_r = 0
 replace a100_r = 1 if auto_ring==1
 drop _merge
+
+tab jahr
 
 * br treated sbahn_r a100_r jahr PLR_ID 
 * drop if jahr>2019
