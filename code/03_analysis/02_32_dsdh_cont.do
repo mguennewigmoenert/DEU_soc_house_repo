@@ -400,27 +400,45 @@ forvalues b = 1/2 {
         cluster(PLR_ID_num)
 }
 
-
+* ================================= *
+**# === Above median drop Dummy === *
+* ================================= *
+* Create two bins (median split) of annual drops
 xtile med_drop = d_socialh if d_socialh>0, nq(2)
+
+* Set all non-drop years to 0
 replace med_drop = 0 if d_socialh == 0
 
-did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
+* Define a dummy for large drops
+g D_med_large = med_drop == 2
+g D_med_small = med_drop == 1
+
+* Interaction
+g c_dd_med_small = c_dd_socialh*D_med_small
+g c_dd_med_large = c_dd_socialh*D_med_large
+
+did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr dec_drop ///
     if a100_r==1 & inrange(jahr,2010,2019), ///
     effects(5) placebo(3) controls(ln_wohnungen) ///
-    cluster(PLR_ID_num)
+    cluster(PLR_ID_num) same_switchers
 
 
 did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
         if med_drop== 1 | med_drop== 0, ///
         effects(5) placebo(3) controls(ln_wohnungen) ///
-        cluster(PLR_ID_num)
+        cluster(PLR_ID_num) same_switchers
 
-
-did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr sh_d_social_priv_10pp ///
+did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
+        if med_drop== 2 | med_drop== 0, ///
         effects(5) placebo(3) controls(ln_wohnungen) ///
-        cluster(PLR_ID_num)
+        cluster(PLR_ID_num) same_switchers
 
+did_multiplegt_dyn ln_sqm_rent_avg PLR_ID_num jahr c_dd_socialh ///
+        if dec_drop >= 3 | dec_drop == 0, ///
+        effects(5) placebo(3) controls(ln_wohnungen) ///
+        cluster(PLR_ID_num) same_switchers
 
+		
 did_multiplegt_dyn p_objects_modern_year PLR_ID_num jahr c_dd_socialh if a100_r == 1 & inrange(jahr, 2010, 2019), effects(5) placebo(3) controls(ln_wohnungen) cluster(PLR_ID_num)
 
 	

@@ -177,6 +177,24 @@ merge 1:1 PLR_ID jahr using `"`socialhousing'"'
 
 drop _merge 
 
+tempfile socialhousing 
+save `socialhousing', replace 
+
+**# Add Gutachter data
+* add sgb12 receivers to main dataframe
+use "${TEMP}/df_final_agg.dta",  clear
+
+* rename for merging
+rename Jahr jahr
+
+* unnecessary observations
+drop if jahr < 2007
+
+* The back-tick + macro name + double quotes expands to the path.
+merge 1:1 PLR_ID jahr using `"`socialhousing'"'
+
+drop _merge 
+
 *263 observations less than 30 object; 99 observations have less than 10 objects 
 
 save "${TEMP}/socialhousing_1_since2008.dta", replace 
